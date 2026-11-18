@@ -10,7 +10,9 @@ import java.util.Objects;
 
 public final class HighScoreManager {
     private final Path scoreFile;
+    private final Path levelFile;
     private long highScore;
+    private int highLevel;
 
     public HighScoreManager() {
         this(Path.of(System.getProperty("user.home"), ".blockfall", "high-score.txt"));
@@ -18,11 +20,27 @@ public final class HighScoreManager {
 
     public HighScoreManager(Path scoreFile) {
         this.scoreFile = Objects.requireNonNull(scoreFile, "scoreFile").toAbsolutePath().normalize();
+        Path parent = this.scoreFile.getParent();
+        this.levelFile = parent == null
+                ? Path.of("high-level.txt")
+                : parent.resolve("high-level.txt");
         highScore = readHighScore();
+        highLevel = readHighLevel();
+    }
+
+    public HighScoreManager(Path scoreFile, Path levelFile) {
+        this.scoreFile = Objects.requireNonNull(scoreFile, "scoreFile").toAbsolutePath().normalize();
+        this.levelFile = Objects.requireNonNull(levelFile, "levelFile").toAbsolutePath().normalize();
+        highScore = readHighScore();
+        highLevel = readHighLevel();
     }
 
     public long getHighScore() {
         return highScore;
+    }
+
+    public int getHighLevel() {
+        return highLevel;
     }
 
     public long saveIfHigher(long score) {
@@ -49,6 +67,30 @@ public final class HighScoreManager {
         return highScore;
     }
 
+    public int saveLevelIfHigher(int level) {
+        if (level < 1) {
+            throw new IllegalArgumentException("Level cannot be below one");
+        }
+        if (level <= highLevel) {
+            return highLevel;
+        }
+
+        try {
+            Path parent = levelFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(levelFile, Integer.toString(level), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+            highLevel = level;
+        } catch (IOException | SecurityException exception) {
+            System.err.println("Unable to save high level to " + levelFile + ": "
+                    + exception.getMessage());
+        }
+        return highLevel;
+    }
+
     private long readHighScore() {
         final String contents;
         try {
@@ -71,6 +113,27 @@ public final class HighScoreManager {
         } catch (NumberFormatException exception) {
             System.err.println("Ignoring invalid high score in " + scoreFile);
             return 0;
+        }
+    }
+
+    private int readHighLevel() {
+        final String contents;
+        try {
+            contents = Files.readString(levelFile, StandardCharsets.UTF_8).trim();
+        } catch (NoSuchFileException exception) {
+            return 1;
+        } catch (IOException | SecurityException exception) {
+            System.err.println("Unable to read high level from " + levelFile + ": "
+                    + exception.getMessage());
+            return 1;
+        }
+
+        try {
+            int level = Integer.parseInt(contents);
+            return level >= 1 ? level : 1;
+        } catch (NumberFormatException exception) {
+            System.err.println("Ignoring invalid high level in " + levelFile);
+            return 1;
         }
     }
 }

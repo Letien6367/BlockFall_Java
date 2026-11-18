@@ -1,9 +1,11 @@
 package tetris.app;
 
+import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -35,20 +37,22 @@ public final class GameFrame extends JFrame {
     private final HighScoreManager highScoreManager = new HighScoreManager();
     private final GamePanel gamePanel;
     private final MenuPanel menuPanel;
-    private final JLabel finalScoreLabel = new JLabel("Final score: 0", SwingConstants.CENTER);
+    private final JLabel finalScoreLabel = new JLabel("Điểm cuối: 0", SwingConstants.CENTER);
+    private ArcadeButton fastFallButton;
+    private ArcadeButton soundButton;
 
     public GameFrame() {
-        super("BlockFall Desktop");
+        super("BlockFall");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         gamePanel = new GamePanel(new Board(), this::handleGameStateChange,
                 highScoreManager::getHighScore);
         menuPanel = new MenuPanel(this::showGameScreen, this::requestClose);
-        menuPanel.setBestScore(highScoreManager.getHighScore());
+        menuPanel.setRecords(highScoreManager.getHighScore(), highScoreManager.getHighLevel());
         contentPanel.add(menuPanel, MENU_SCREEN);
-        contentPanel.add(gamePanel, GAME_SCREEN);
-        contentPanel.add(createStateScreen("PAUSED", "The game is paused.", null,
-                "Resume", this::resumeGame), PAUSED_SCREEN);
+        contentPanel.add(createGameScreen(), GAME_SCREEN);
+        contentPanel.add(createStateScreen("TẠM DỪNG", "Trò chơi đang tạm dừng.", null,
+                "Tiếp tục", this::resumeGame), PAUSED_SCREEN);
         contentPanel.add(createGameOverScreen(), GAME_OVER_SCREEN);
         setContentPane(contentPanel);
         bindGlobalControls();
@@ -57,12 +61,43 @@ public final class GameFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
+    private JPanel createGameScreen() {
+        JPanel screen = new JPanel(new BorderLayout());
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 16, 5));
+        controls.setBackground(new Color(14, 20, 40));
+        fastFallButton = new ArcadeButton("Tua x2", this::toggleFastFall);
+        soundButton = new ArcadeButton("Âm thanh: bật", this::toggleSound);
+        controls.add(new ArcadeButton("Tạm dừng", this::pauseGame));
+        controls.add(fastFallButton);
+        controls.add(soundButton);
+        screen.add(controls, BorderLayout.NORTH);
+        screen.add(gamePanel, BorderLayout.CENTER);
+        return screen;
+    }
+
+    private void toggleFastFall() {
+        boolean enabled = gamePanel.toggleFastFall();
+        fastFallButton.setText(enabled ? "Tua 1x" : "Tua x2");
+    }
+
+    private void toggleSound() {
+        boolean enabled = gamePanel.toggleSound();
+        soundButton.setText(enabled ? "Âm thanh: bật" : "Âm thanh: tắt");
+    }
+
     public GameState getGameState() {
         return gameState;
     }
 
     private void showGameScreen() {
         gamePanel.resetGame();
+        if (fastFallButton != null) {
+            fastFallButton.setText("Tua x2");
+        }
+        if (soundButton != null) {
+            soundButton.setText(gamePanel.isSoundEnabled()
+                    ? "Âm thanh: bật" : "Âm thanh: tắt");
+        }
         gameState = GameState.PLAYING;
         screenLayout.show(contentPanel, GAME_SCREEN);
         gamePanel.startGame();
@@ -72,8 +107,10 @@ public final class GameFrame extends JFrame {
         gameState = state;
         if (state == GameState.GAME_OVER) {
             long bestScore = highScoreManager.saveIfHigher(gamePanel.getScore());
-            menuPanel.setBestScore(bestScore);
-            finalScoreLabel.setText("Final score: " + gamePanel.getScore());
+            int bestLevel = highScoreManager.saveLevelIfHigher(gamePanel.getLevel());
+            menuPanel.setRecords(bestScore, bestLevel);
+            finalScoreLabel.setText("Điểm cuối: " + gamePanel.getScore()
+                    + "  |  Cấp độ: " + gamePanel.getLevel());
             gamePanel.repaint();
             screenLayout.show(contentPanel, GAME_OVER_SCREEN);
         }
@@ -133,8 +170,8 @@ public final class GameFrame extends JFrame {
     }
 
     private JPanel createGameOverScreen() {
-        return createStateScreen("GAME OVER", null, finalScoreLabel,
-                "Play Again", this::showGameScreen);
+        return createStateScreen("KẾT THÚC", null, finalScoreLabel,
+                "Chơi lại", this::showGameScreen);
     }
 
     private JPanel createStateScreen(String title, String message, JLabel dynamicMessage,
@@ -166,8 +203,8 @@ public final class GameFrame extends JFrame {
         }
 
         ArcadeButton primaryButton = new ArcadeButton(primaryActionText, primaryAction);
-        ArcadeButton menuButton = new ArcadeButton("Main Menu", this::returnToMenu);
-        ArcadeButton exitButton = new ArcadeButton("Exit", this::requestClose);
+        ArcadeButton menuButton = new ArcadeButton("Màn hình chính", this::returnToMenu);
+        ArcadeButton exitButton = new ArcadeButton("Thoát", this::requestClose);
         JPanel buttons = new JPanel(new GridLayout(3, 1, 0, 10));
         buttons.setOpaque(false);
         buttons.setPreferredSize(new Dimension(220, 160));

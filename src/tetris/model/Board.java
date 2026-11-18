@@ -66,6 +66,23 @@ public final class Board {
         }
     }
 
+    public int[] getFullRowIndexes() {
+        int count = 0;
+        for (int row = 0; row < ROWS; row++) {
+            if (isRowFull(row)) {
+                count++;
+            }
+        }
+        int[] rows = new int[count];
+        int index = 0;
+        for (int row = 0; row < ROWS; row++) {
+            if (isRowFull(row)) {
+                rows[index++] = row;
+            }
+        }
+        return rows;
+    }
+
     private boolean isRowFull(int row) {
         for (int column = 0; column < COLUMNS; column++) {
             if (!occupiedCells[row][column]) {

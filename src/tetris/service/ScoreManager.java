@@ -1,10 +1,10 @@
 package tetris.service;
 
 public final class ScoreManager {
-    private static final int BASE_GRAVITY_DELAY_MS = 600;
-    private static final int GRAVITY_STEP_MS = 50;
-    private static final int MIN_GRAVITY_DELAY_MS = 100;
-    private static final int LINES_PER_LEVEL = 10;
+    private static final int BASE_GRAVITY_DELAY_MS = 420;
+    private static final int GRAVITY_STEP_MS = 40;
+    private static final int MIN_GRAVITY_DELAY_MS = 70;
+    private static final int LINES_PER_LEVEL = 5;
     private static final int[] LINE_SCORES = {0, 100, 300, 500, 800};
 
     private long score;
