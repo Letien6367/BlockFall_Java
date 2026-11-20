@@ -1,8 +1,11 @@
 package tetris.core;
 
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -32,6 +35,7 @@ public final class GamePanel extends JPanel {
     private static final int VERTICAL_MARGIN = 52;
     private static final int INFO_PANEL_WIDTH = 220;
     private static final int PANEL_GAP = 55;
+    private static final int COMBO_EFFECT_DURATION_TICKS = 24;
     private static final Color BACKGROUND_COLOR = new Color(14, 20, 40);
     private static final Color BOARD_COLOR = new Color(8, 12, 27);
     private static final Color GRID_COLOR = new Color(37, 47, 72);
@@ -51,6 +55,7 @@ public final class GamePanel extends JPanel {
     private final Consumer<GameState> stateChangeHandler;
     private final LongSupplier highScoreSupplier;
     private final Timer lineClearEffectTimer;
+    private final Timer comboEffectTimer;
     private final Random paletteRandom = new Random();
     private final EnumMap<TetrominoType, Color> piecePalette = new EnumMap<>(TetrominoType.class);
     private Tetromino activeTetromino;
@@ -60,6 +65,9 @@ public final class GamePanel extends JPanel {
     private boolean fastFallEnabled;
     private int[] lineClearEffectRows = new int[0];
     private int lineClearEffectPhase;
+    private int consecutiveLineClears;
+    private int displayedCombo;
+    private int comboEffectPhase;
 
     public GamePanel(Board board) {
         this(board, state -> {
@@ -81,6 +89,7 @@ public final class GamePanel extends JPanel {
         setFocusable(true);
         gravityTimer = new Timer(scoreManager.getGravityDelayMillis(), event -> gravityTick());
         lineClearEffectTimer = new Timer(45, event -> advanceLineClearEffect());
+        comboEffectTimer = new Timer(45, event -> advanceComboEffect());
         generateRandomPalette();
         bindMovementKeys();
         nextType = tetrominoBag.next();
@@ -95,6 +104,7 @@ public final class GamePanel extends JPanel {
     public void pauseGame() {
         gravityTimer.stop();
         lineClearEffectTimer.stop();
+        comboEffectTimer.stop();
     }
 
     public void resumeGame() {
@@ -103,6 +113,9 @@ public final class GamePanel extends JPanel {
             if (isLineClearEffectActive()) {
                 lineClearEffectTimer.restart();
             }
+            if (displayedCombo >= 1) {
+                comboEffectTimer.restart();
+            }
             requestFocusInWindow();
         }
     }
@@ -110,8 +123,12 @@ public final class GamePanel extends JPanel {
     public void resetGame() {
         gravityTimer.stop();
         lineClearEffectTimer.stop();
+        comboEffectTimer.stop();
         lineClearEffectRows = new int[0];
         lineClearEffectPhase = 0;
+        consecutiveLineClears = 0;
+        displayedCombo = 0;
+        comboEffectPhase = 0;
         board.clear();
         scoreManager.reset();
         generateRandomPalette();
@@ -145,6 +162,18 @@ public final class GamePanel extends JPanel {
 
     public long getScore() {
         return scoreManager.getScore();
+    }
+
+    int getComboCount() {
+        return consecutiveLineClears;
+    }
+
+    int getDisplayedCombo() {
+        return displayedCombo;
+    }
+
+    boolean isComboEffectActive() {
+        return comboEffectTimer.isRunning();
     }
 
     public int getLevel() {
@@ -286,6 +315,10 @@ public final class GamePanel extends JPanel {
             activeTetromino = null;
             gravityTimer.stop();
             lineClearEffectTimer.stop();
+            comboEffectTimer.stop();
+            consecutiveLineClears = 0;
+            displayedCombo = 0;
+            comboEffectPhase = 0;
             soundManager.play(SoundManager.Effect.GAME_OVER);
             stateChangeHandler.accept(GameState.GAME_OVER);
         }
@@ -332,6 +365,7 @@ public final class GamePanel extends JPanel {
         int clearedLineCount = board.clearFullRows();
         int previousLevel = scoreManager.getLevel();
         scoreManager.addClearedLines(clearedLineCount);
+        updateComboEffect(clearedLineCount);
         if (scoreManager.getLevel() > previousLevel) {
             generateRandomPalette();
         }
@@ -363,6 +397,33 @@ public final class GamePanel extends JPanel {
             lineClearEffectRows = new int[0];
             lineClearEffectPhase = 0;
         }
+    }
+
+    private void updateComboEffect(int clearedLineCount) {
+        if (clearedLineCount == 0) {
+            consecutiveLineClears = 0;
+            stopComboEffect();
+            return;
+        }
+
+        consecutiveLineClears++;
+        displayedCombo = consecutiveLineClears;
+        comboEffectPhase = 0;
+        comboEffectTimer.restart();
+    }
+
+    private void advanceComboEffect() {
+        comboEffectPhase++;
+        if (comboEffectPhase >= COMBO_EFFECT_DURATION_TICKS) {
+            stopComboEffect();
+        }
+        repaint();
+    }
+
+    private void stopComboEffect() {
+        comboEffectTimer.stop();
+        displayedCombo = 0;
+        comboEffectPhase = 0;
     }
 
     boolean isLineClearEffectActive() {
@@ -414,6 +475,7 @@ public final class GamePanel extends JPanel {
             } else {
                 drawGameOver(g2, boardX, boardY, boardWidth, boardHeight);
             }
+            drawComboEffect(g2, boardX, boardY, boardWidth, boardHeight);
             drawInfoPanel(g2, boardX + boardWidth + PANEL_GAP, boardY + 36);
         } finally {
             g2.dispose();
@@ -512,6 +574,67 @@ public final class GamePanel extends JPanel {
                     centerY - ringSize / 4,
                     ringSize,
                     ringSize / 2);
+        }
+    }
+
+    private void drawComboEffect(Graphics2D g2, int boardX, int boardY,
+            int boardWidth, int boardHeight) {
+        if (displayedCombo < 1) {
+            return;
+        }
+
+        float progress = (float) comboEffectPhase / COMBO_EFFECT_DURATION_TICKS;
+        float fadeProgress = Math.max(0, (progress - 0.62f) / 0.38f);
+        float alpha = 1f - fadeProgress;
+        float entranceProgress = Math.min(1f, comboEffectPhase / 5f);
+        double scale = 0.84 + entranceProgress * 0.16;
+        int rise = Math.min(18, comboEffectPhase);
+
+        String comboText = "COMBO x" + displayedCombo + "!";
+        Font comboFont = new Font(Font.SANS_SERIF, Font.BOLD, 28);
+        FontMetrics metrics = g2.getFontMetrics(comboFont);
+        int bannerWidth = Math.max(190, metrics.stringWidth(comboText) + 40);
+        int bannerHeight = 72;
+        int centerX = boardX + boardWidth / 2;
+        int centerY = boardY + boardHeight / 2 - rise;
+        int bannerX = centerX - bannerWidth / 2;
+        int bannerY = centerY - bannerHeight / 2;
+
+        Graphics2D comboGraphics = (Graphics2D) g2.create();
+        try {
+            comboGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            comboGraphics.setComposite(AlphaComposite.SrcOver.derive(alpha));
+            comboGraphics.translate(centerX, centerY);
+            comboGraphics.scale(scale, scale);
+            comboGraphics.translate(-centerX, -centerY);
+
+            comboGraphics.setColor(new Color(8, 14, 29, 225));
+            comboGraphics.fillRoundRect(bannerX + 3, bannerY + 4,
+                    bannerWidth, bannerHeight, 20, 20);
+            comboGraphics.setColor(new Color(22, 34, 59, 242));
+            comboGraphics.fillRoundRect(bannerX, bannerY,
+                    bannerWidth, bannerHeight, 20, 20);
+            comboGraphics.setColor(new Color(75, 220, 207));
+            comboGraphics.setStroke(new BasicStroke(2f));
+            comboGraphics.drawRoundRect(bannerX, bannerY,
+                    bannerWidth, bannerHeight, 20, 20);
+
+            comboGraphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 10));
+            comboGraphics.setColor(new Color(179, 207, 231));
+            String caption = displayedCombo == 1 ? "BẮT ĐẦU CHUỖI" : "LIÊN TIẾP";
+            FontMetrics captionMetrics = comboGraphics.getFontMetrics();
+            comboGraphics.drawString(caption,
+                    centerX - captionMetrics.stringWidth(caption) / 2,
+                    bannerY + 23);
+
+            comboGraphics.setFont(comboFont);
+            comboGraphics.setColor(new Color(255, 211, 105));
+            comboGraphics.drawString(comboText,
+                    centerX - metrics.stringWidth(comboText) / 2,
+                    bannerY + 55);
+        } finally {
+            comboGraphics.dispose();
         }
     }
 

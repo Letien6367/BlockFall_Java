@@ -10,11 +10,13 @@ import java.awt.Font;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 import javax.swing.AbstractAction;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
@@ -23,6 +25,8 @@ import tetris.core.GameState;
 import tetris.model.Board;
 import tetris.ui.ArcadeButton;
 import tetris.service.HighScoreManager;
+import tetris.service.LeaderboardManager;
+import tetris.service.LeaderboardManager.PlayerRecord;
 import tetris.ui.MenuPanel;
 
 public final class GameFrame extends JFrame {
@@ -35,9 +39,11 @@ public final class GameFrame extends JFrame {
     private final JPanel contentPanel = new JPanel(screenLayout);
     private GameState gameState = GameState.MENU;
     private final HighScoreManager highScoreManager = new HighScoreManager();
+    private final LeaderboardManager leaderboardManager = new LeaderboardManager();
     private final GamePanel gamePanel;
     private final MenuPanel menuPanel;
     private final JLabel finalScoreLabel = new JLabel("Điểm cuối: 0", SwingConstants.CENTER);
+    private PlayerRecord activePlayer;
     private ArcadeButton fastFallButton;
     private ArcadeButton soundButton;
 
@@ -48,7 +54,7 @@ public final class GameFrame extends JFrame {
         gamePanel = new GamePanel(new Board(), this::handleGameStateChange,
                 highScoreManager::getHighScore);
         menuPanel = new MenuPanel(this::showGameScreen, this::requestClose);
-        menuPanel.setRecords(highScoreManager.getHighScore(), highScoreManager.getHighLevel());
+        menuPanel.setLeaderboard(leaderboardManager.getTopPlayers());
         contentPanel.add(menuPanel, MENU_SCREEN);
         contentPanel.add(createGameScreen(), GAME_SCREEN);
         contentPanel.add(createStateScreen("TẠM DỪNG", "Trò chơi đang tạm dừng.", null,
@@ -89,7 +95,23 @@ public final class GameFrame extends JFrame {
         return gameState;
     }
 
-    private void showGameScreen() {
+    private void showGameScreen(String playerName) {
+        try {
+            activePlayer = leaderboardManager.findOrCreatePlayer(playerName);
+        } catch (IllegalArgumentException | IOException | SecurityException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    "Không thể bắt đầu", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        menuPanel.setPlayerName(activePlayer.name());
+        menuPanel.setLeaderboard(leaderboardManager.getTopPlayers());
+        startGameScreen();
+    }
+
+    private void startGameScreen() {
+        if (activePlayer == null) {
+            return;
+        }
         gamePanel.resetGame();
         if (fastFallButton != null) {
             fastFallButton.setText("Tua x2");
@@ -106,9 +128,19 @@ public final class GameFrame extends JFrame {
     private void handleGameStateChange(GameState state) {
         gameState = state;
         if (state == GameState.GAME_OVER) {
-            long bestScore = highScoreManager.saveIfHigher(gamePanel.getScore());
-            int bestLevel = highScoreManager.saveLevelIfHigher(gamePanel.getLevel());
-            menuPanel.setRecords(bestScore, bestLevel);
+            if (activePlayer != null) {
+                try {
+                    activePlayer = leaderboardManager.saveScore(
+                            activePlayer.id(), gamePanel.getScore());
+                    menuPanel.setLeaderboard(leaderboardManager.getTopPlayers());
+                } catch (IllegalArgumentException | IOException | SecurityException exception) {
+                    JOptionPane.showMessageDialog(this,
+                            "Không thể lưu điểm vào bảng xếp hạng: " + exception.getMessage(),
+                            "Lỗi lưu điểm", JOptionPane.WARNING_MESSAGE);
+                }
+            }
+            highScoreManager.saveIfHigher(gamePanel.getScore());
+            highScoreManager.saveLevelIfHigher(gamePanel.getLevel());
             finalScoreLabel.setText("Điểm cuối: " + gamePanel.getScore()
                     + "  |  Cấp độ: " + gamePanel.getLevel());
             gamePanel.repaint();
@@ -134,7 +166,7 @@ public final class GameFrame extends JFrame {
 
     private void restartGame() {
         if (gameState != GameState.MENU) {
-            showGameScreen();
+            startGameScreen();
         }
     }
 
@@ -171,7 +203,7 @@ public final class GameFrame extends JFrame {
 
     private JPanel createGameOverScreen() {
         return createStateScreen("KẾT THÚC", null, finalScoreLabel,
-                "Chơi lại", this::showGameScreen);
+                "Chơi lại", this::restartGame);
     }
 
     private JPanel createStateScreen(String title, String message, JLabel dynamicMessage,
