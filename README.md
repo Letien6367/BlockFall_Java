@@ -68,22 +68,20 @@ java -cp $classes Main
 | Rotate clockwise | Up / X |
 | Rotate counterclockwise | Z |
 | Hard drop | Space |
-| Pause / resume | P / Escape |
+| Hold / swap piece | C (once per piece) |
+| Pause / resume | Pause button or P / Escape |
 | Restart | R |
 
-Pause, game-over, and menu screens also provide buttons for resume, restart,
-returning to the main menu, and exit.
+The game shows a ghost piece at the active piece's landing position. Use Hold
+to store the active piece or swap it with the stored piece; Hold becomes
+available again after the current piece locks.
+Pieces are generated in shuffled groups of seven, so each group contains every
+tetromino type.
 
-## Tests
-
-Run the dependency-free model, gameplay, persistence, and UI tests with:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\test.ps1
-```
-
-The test runner compiles the production sources and tests with Java 21 language
-and API compatibility, then runs the Swing panel tests in headless mode.
+Use the Pause button while playing to stop the game without losing progress.
+Choose Resume to continue the same game. P / Escape also toggles pause/resume.
+Pause, game-over, and menu screens also provide buttons for restart, returning
+to the main menu, and exit.
 
 ## High score
 
@@ -91,3 +89,20 @@ The best score is stored locally at
 `%USERPROFILE%\.blockfall\high-score.txt`. The game can still run if the file is
 missing or unavailable; file errors are reported in the application process
 output.
+
+## Player leaderboard
+
+Enter a player name on the main menu before starting. Names are trimmed and
+repeated whitespace is collapsed; matching is case-sensitive, so `An` and
+`an` are separate players. Names can be up to 24 characters. Returning players
+reuse their saved player ID, and each player's personal best score is retained.
+The menu shows the ten highest scores. Player records are stored locally at
+`%USERPROFILE%\.blockfall\leaderboard.txt`.
+
+## Combo effect
+
+Each piece lock that clears one or more lines counts as one combo step and
+displays an animated `COMBO xN!` banner starting at x1. Consecutive clear
+events increase the count; clearing multiple lines with one piece still counts
+as one step. The combo resets when a piece locks without clearing a line. This
+visual effect does not add bonus points.
