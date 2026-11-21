@@ -1,0 +1,5 @@
+IF DB_ID(N'BlockFall') IS NULL
+BEGIN
+    CREATE DATABASE [BlockFall];
+END
+GO

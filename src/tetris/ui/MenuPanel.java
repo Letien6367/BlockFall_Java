@@ -23,10 +23,10 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
-import tetris.service.LeaderboardManager;
-import tetris.service.LeaderboardManager.PlayerRecord;
+import tetris.service.PlayerRecord;
 
 public final class MenuPanel extends JPanel {
+    private static final int MAX_PLAYERS_DISPLAYED = 10;
     private static final Color BACKGROUND_COLOR = new Color(14, 20, 40);
     private static final Color CARD_COLOR = new Color(24, 33, 59);
     private static final Color CARD_BORDER_COLOR = new Color(49, 64, 98);
@@ -36,12 +36,26 @@ public final class MenuPanel extends JPanel {
 
     private final JTextField playerNameField = new JTextField(18);
     private final JPanel leaderboardEntries = new JPanel();
+    private final JLabel databaseStatus = new JLabel("Đang kết nối SQL Server...");
+    private ArcadeButton playButton;
+    private ArcadeButton historyButton;
+    private boolean databaseReady;
+    private boolean busy;
 
     public MenuPanel(Runnable onPlay, Runnable onExit) {
-        this(adaptPlayAction(onPlay), onExit);
+        this(adaptPlayAction(onPlay), onExit, null, false);
     }
 
     public MenuPanel(Consumer<String> onPlay, Runnable onExit) {
+        this(onPlay, onExit, null, false);
+    }
+
+    public MenuPanel(Consumer<String> onPlay, Runnable onExit, Runnable onHistory) {
+        this(onPlay, onExit, Objects.requireNonNull(onHistory, "onHistory"), true);
+    }
+
+    private MenuPanel(Consumer<String> onPlay, Runnable onExit, Runnable onHistory,
+            boolean includeHistory) {
         super(new BorderLayout(0, 24));
         Objects.requireNonNull(onPlay, "onPlay");
         Objects.requireNonNull(onExit, "onExit");
@@ -50,7 +64,8 @@ public final class MenuPanel extends JPanel {
         setBorder(new EmptyBorder(28, 48, 34, 48));
 
         JPanel header = createHeader();
-        CardPanel playerCard = createPlayerCard(onPlay, onExit);
+        CardPanel playerCard = createPlayerCard(onPlay, onExit,
+                includeHistory ? onHistory : null);
         CardPanel leaderboardCard = createLeaderboardCard();
 
         JPanel content = new JPanel(new GridBagLayout());
@@ -73,6 +88,11 @@ public final class MenuPanel extends JPanel {
 
         add(header, BorderLayout.NORTH);
         add(content, BorderLayout.CENTER);
+        databaseReady = !includeHistory;
+        if (!includeHistory) {
+            databaseStatus.setText("");
+        }
+        updateDatabaseControls();
     }
 
     private JPanel createHeader() {
@@ -97,7 +117,8 @@ public final class MenuPanel extends JPanel {
         return header;
     }
 
-    private CardPanel createPlayerCard(Consumer<String> onPlay, Runnable onExit) {
+    private CardPanel createPlayerCard(Consumer<String> onPlay, Runnable onExit,
+            Runnable onHistory) {
         CardPanel card = new CardPanel(new BorderLayout(),
                 CARD_COLOR, CARD_BORDER_COLOR);
         card.setName("player-entry-card");
@@ -131,7 +152,7 @@ public final class MenuPanel extends JPanel {
                 BorderFactory.createLineBorder(new Color(68, 96, 143), 1),
                 new EmptyBorder(10, 12, 10, 12)));
         playerNameField.setToolTipText("Nhập tên, tối đa "
-                + LeaderboardManager.MAX_NAME_LENGTH + " ký tự");
+                + PlayerRecord.MAX_NAME_LENGTH + " ký tự");
 
         JLabel nameHint = new JLabel("Tên cũ sẽ dùng lại hồ sơ và thành tích.",
                 SwingConstants.LEFT);
@@ -139,11 +160,18 @@ public final class MenuPanel extends JPanel {
         nameHint.setForeground(SECONDARY_TEXT_COLOR);
         nameHint.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
 
-        ArcadeButton playButton = new ArcadeButton("Chơi",
+        playButton = new ArcadeButton("Chơi",
                 () -> onPlay.accept(playerNameField.getText()));
+        playButton.setName("play-button");
         ArcadeButton exitButton = new ArcadeButton("Thoát", onExit);
         playButton.setPreferredSize(new Dimension(150, 48));
         exitButton.setPreferredSize(new Dimension(120, 48));
+        if (onHistory != null) {
+            historyButton = new ArcadeButton("Lịch sử ván", onHistory);
+            historyButton.setName("history-button");
+            historyButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+            historyButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        }
 
         JPanel buttons = new JPanel(new GridLayout(1, 2, 12, 0));
         buttons.setOpaque(false);
@@ -159,6 +187,15 @@ public final class MenuPanel extends JPanel {
         content.add(playerNameField);
         content.add(Box.createVerticalStrut(6));
         content.add(nameHint);
+        if (historyButton != null) {
+            content.add(Box.createVerticalStrut(12));
+            content.add(historyButton);
+        }
+        databaseStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
+        databaseStatus.setForeground(SECONDARY_TEXT_COLOR);
+        databaseStatus.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        content.add(Box.createVerticalStrut(8));
+        content.add(databaseStatus);
         content.add(Box.createVerticalGlue());
         content.add(buttons);
         card.add(content, BorderLayout.CENTER);
@@ -205,7 +242,7 @@ public final class MenuPanel extends JPanel {
     public void setLeaderboard(List<PlayerRecord> players) {
         Objects.requireNonNull(players, "players");
         leaderboardEntries.removeAll();
-        int displayedPlayers = Math.min(players.size(), LeaderboardManager.MAX_PLAYERS_DISPLAYED);
+        int displayedPlayers = Math.min(players.size(), MAX_PLAYERS_DISPLAYED);
         if (displayedPlayers == 0) {
             JLabel emptyState = new JLabel("Chưa có người chơi", SwingConstants.CENTER);
             emptyState.setForeground(SECONDARY_TEXT_COLOR);
@@ -221,6 +258,29 @@ public final class MenuPanel extends JPanel {
         }
         leaderboardEntries.revalidate();
         leaderboardEntries.repaint();
+    }
+
+    public void setDatabaseReady(boolean ready, String status) {
+        databaseReady = ready;
+        databaseStatus.setText(status);
+        databaseStatus.setForeground(ready
+                ? new Color(124, 220, 164) : new Color(255, 164, 145));
+        updateDatabaseControls();
+    }
+
+    public void setBusy(boolean busy) {
+        this.busy = busy;
+        updateDatabaseControls();
+    }
+
+    private void updateDatabaseControls() {
+        if (playButton != null) {
+            playButton.setEnabled(databaseReady && !busy);
+        }
+        if (historyButton != null) {
+            historyButton.setEnabled(databaseReady && !busy);
+        }
+        playerNameField.setEnabled(databaseReady && !busy);
     }
 
     private JPanel createLeaderboardRow(int rank, PlayerRecord player) {

@@ -1,11 +1,13 @@
 # BlockFall Desktop
 
-A desktop falling-block game built with Java 21, Swing, and AWT. No third-party
-libraries or network services are required.
+A desktop falling-block game built with Java 21, Swing, and AWT. Player records
+are stored in a local SQL Server Express/LocalDB database; no online service is
+used.
 
 ## Requirements
 
 - JDK 21 or newer to build and run the game.
+- SQL Server Express or LocalDB installed on the same computer.
 - A graphical desktop environment for the Swing window.
 - VS Code with the Extension Pack for Java is optional.
 
@@ -27,37 +29,65 @@ From the project directory, run:
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-The script compiles every Java source with `--release 21` into `build\classes`
-and creates `BlockFall.jar` using `manifest.mf`.
-
-To build manually:
+The script compiles every Java source with `--release 21` and packages the
+Microsoft SQL Server JDBC driver into `BlockFall.jar`. If the pinned driver is
+not already in the local Maven cache, the build downloads it from Maven Central.
+An alternate output path can be supplied for validation:
 
 ```powershell
-$classes = Join-Path $PWD 'build\classes'
-New-Item -ItemType Directory -Force -Path $classes | Out-Null
-$sources = Get-ChildItem -Path .\src -Recurse -Filter *.java | ForEach-Object FullName
-javac --release 21 -d $classes $sources
-jar --create --file .\BlockFall.jar --manifest .\manifest.mf -C $classes .
+powershell -ExecutionPolicy Bypass -File .\build.ps1 -OutputJarPath .\build\BlockFall.jar
 ```
 
 ## Run
 
-Run the packaged game from PowerShell:
+Create the application database once using a Windows-authenticated SQL Server
+administrative session:
+
+```powershell
+sqlcmd -S .\SQLEXPRESS -E -i .\database\setup.sql
+```
+
+The script creates the `BlockFall` database if it does not exist. Create a
+dedicated SQL Server login for the game in SQL Server Management Studio (or
+another trusted admin tool) named `BlockFallApp`, enable SQL Server
+Authentication if needed, then grant the app permissions:
+
+```powershell
+sqlcmd -S .\SQLEXPRESS -E -i .\database\grant-app-permissions.sql
+```
+
+The application creates its tables and imports the legacy files on first
+start.
+
+Configure the connection in the process environment; do not put credentials in
+source files or commit them. The default URL targets the local `SQLEXPRESS`
+instance. Enter the SQL login and password in the current PowerShell session
+without placing the password in shell history:
+
+```powershell
+$env:BLOCKFALL_DB_URL = 'jdbc:sqlserver://localhost;instanceName=SQLEXPRESS;databaseName=BlockFall;encrypt=true;trustServerCertificate=true'
+$env:BLOCKFALL_DB_USER = Read-Host 'SQL Server application login'
+$securePassword = Read-Host 'SQL Server application password' -AsSecureString
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+try {
+    $env:BLOCKFALL_DB_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+} finally {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+}
+```
+
+To use LocalDB or a different Express instance, set `BLOCKFALL_DB_URL` to that
+instance's JDBC URL. Keep these environment variables available in the shell
+used to launch the game.
+
+Run the packaged game from the same PowerShell session:
 
 ```powershell
 java -jar .\BlockFall.jar
 ```
 
-To run from VS Code, open `src\Main.java` and choose **Run Java**. The project
-can also be compiled and launched directly:
-
-```powershell
-$classes = Join-Path $PWD 'build\classes'
-New-Item -ItemType Directory -Force -Path $classes | Out-Null
-$sources = Get-ChildItem -Path .\src -Recurse -Filter *.java | ForEach-Object FullName
-javac --release 21 -d $classes $sources
-java -cp $classes Main
-```
+The runtime does not need internet access. Database connection and persistence
+errors are shown in the application and reported to its process output.
 
 ## Controls
 
@@ -83,21 +113,27 @@ Choose Resume to continue the same game. P / Escape also toggles pause/resume.
 Pause, game-over, and menu screens also provide buttons for restart, returning
 to the main menu, and exit.
 
-## High score
-
-The best score is stored locally at
-`%USERPROFILE%\.blockfall\high-score.txt`. The game can still run if the file is
-missing or unavailable; file errors are reported in the application process
-output.
-
-## Player leaderboard
+## Player records and game history
 
 Enter a player name on the main menu before starting. Names are trimmed and
 repeated whitespace is collapsed; matching is case-sensitive, so `An` and
 `an` are separate players. Names can be up to 24 characters. Returning players
 reuse their saved player ID, and each player's personal best score is retained.
-The menu shows the ten highest scores. Player records are stored locally at
-`%USERPROFILE%\.blockfall\leaderboard.txt`.
+The menu shows the ten highest scores. At game over, the score, level, lines
+cleared, and UTC completion time are saved. Choose **Lịch sử ván** on the menu
+to browse the latest 100 games.
+
+Player records and game history are stored in the local SQL Server database
+`BlockFall`. On first startup, existing files in `%USERPROFILE%\.blockfall`
+(`leaderboard.txt`, `high-score.txt`, and `high-level.txt`) are imported once.
+The original files are kept; the database is the source of truth afterward.
+The import is transactional and will not be marked complete if a read or
+database error prevents it.
+
+The Microsoft SQL Server JDBC Driver is distributed under the MIT License.
+The notice is included in `BlockFall.jar` and in
+`licenses\Microsoft-SQL-Server-JDBC.txt`; see
+[Microsoft's JDBC Driver repository](https://github.com/microsoft/mssql-jdbc).
 
 ## Combo effect
 

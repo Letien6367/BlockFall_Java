@@ -180,6 +180,10 @@ public final class GamePanel extends JPanel {
         return scoreManager.getLevel();
     }
 
+    public int getLines() {
+        return scoreManager.getLines();
+    }
+
     boolean isGravityTimerRunning() {
         return gravityTimer.isRunning();
     }
