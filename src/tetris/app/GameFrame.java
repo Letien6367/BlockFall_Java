@@ -27,8 +27,8 @@ import tetris.core.GameState;
 import tetris.model.Board;
 import tetris.ui.ArcadeButton;
 import tetris.service.GameRecord;
+import tetris.service.LocalGameRepository;
 import tetris.service.PlayerRecord;
-import tetris.service.SqlServerGameRepository;
 import tetris.ui.HistoryPanel;
 import tetris.ui.MenuPanel;
 
@@ -42,7 +42,7 @@ public final class GameFrame extends JFrame {
     private final CardLayout screenLayout = new CardLayout();
     private final JPanel contentPanel = new JPanel(screenLayout);
     private GameState gameState = GameState.MENU;
-    private final SqlServerGameRepository gameRepository = new SqlServerGameRepository();
+    private final LocalGameRepository gameRepository = new LocalGameRepository();
     private final GamePanel gamePanel;
     private final MenuPanel menuPanel;
     private final HistoryPanel historyPanel;
@@ -50,7 +50,7 @@ public final class GameFrame extends JFrame {
     private PlayerRecord activePlayer;
     private ArcadeButton fastFallButton;
     private ArcadeButton soundButton;
-    private boolean databaseReady;
+    private boolean persistenceReady;
     private long gameRunId;
 
     public GameFrame() {
@@ -61,7 +61,7 @@ public final class GameFrame extends JFrame {
                 gameRepository::getHighScore);
         menuPanel = new MenuPanel(this::showGameScreen, this::requestClose,
                 this::showHistoryScreen);
-        menuPanel.setDatabaseReady(false, "Đang kết nối SQL Server...");
+        menuPanel.setPersistenceReady(false, "Đang tải bảng xếp hạng...");
         menuPanel.setLeaderboard(List.of());
         historyPanel = new HistoryPanel(this::returnToMenu);
         contentPanel.add(menuPanel, MENU_SCREEN);
@@ -75,7 +75,7 @@ public final class GameFrame extends JFrame {
 
         setSize(900, 650);
         setLocationRelativeTo(null);
-        initializeDatabase();
+        initializeLocalStorage();
     }
 
     private JPanel createGameScreen() {
@@ -107,7 +107,7 @@ public final class GameFrame extends JFrame {
     }
 
     private void showGameScreen(String playerName) {
-        if (!databaseReady) {
+        if (!persistenceReady) {
             return;
         }
         menuPanel.setBusy(true);
@@ -199,7 +199,7 @@ public final class GameFrame extends JFrame {
         }
     }
 
-    private void initializeDatabase() {
+    private void initializeLocalStorage() {
         new SwingWorker<List<PlayerRecord>, Void>() {
             @Override
             protected List<PlayerRecord> doInBackground() throws Exception {
@@ -211,33 +211,34 @@ public final class GameFrame extends JFrame {
             protected void done() {
                 try {
                     menuPanel.setLeaderboard(get());
-                    databaseReady = true;
-                    menuPanel.setDatabaseReady(true, "Đã kết nối database.");
+                    persistenceReady = true;
+                    menuPanel.setPersistenceReady(true,
+                            "Bảng xếp hạng được lưu trên máy này.");
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    showDatabaseInitializationFailure(exception);
+                    showStorageInitializationFailure(exception);
                 } catch (ExecutionException exception) {
-                    showDatabaseInitializationFailure(exception);
+                    showStorageInitializationFailure(exception);
                 }
             }
         }.execute();
     }
 
-    private void showDatabaseInitializationFailure(Exception exception) {
+    private void showStorageInitializationFailure(Exception exception) {
         Throwable cause = exception instanceof ExecutionException && exception.getCause() != null
                 ? exception.getCause() : exception;
         String message = cause.getMessage() == null
                 ? cause.getClass().getSimpleName() : cause.getMessage();
-        menuPanel.setDatabaseReady(false, "Database chưa sẵn sàng: " + message);
-        System.err.println("Unable to initialize the game database: " + message);
+        menuPanel.setPersistenceReady(false, "Không đọc được bảng xếp hạng: " + message);
+        System.err.println("Unable to load local player records: " + message);
         JOptionPane.showMessageDialog(this,
-                "Không thể khởi tạo database SQL Server.\n" + message
-                        + "\nKiểm tra dịch vụ SQL Server, database BlockFall và cấu hình kết nối.",
-                "Lỗi kết nối database", JOptionPane.ERROR_MESSAGE);
+                "Không thể đọc bảng xếp hạng trên máy.\n" + message
+                        + "\nKiểm tra quyền truy cập thư mục .blockfall trong thư mục người dùng.",
+                "Lỗi đọc thành tích", JOptionPane.ERROR_MESSAGE);
     }
 
     private void showHistoryScreen() {
-        if (!databaseReady) {
+        if (!persistenceReady) {
             return;
         }
         historyPanel.setLoading();
@@ -245,7 +246,7 @@ public final class GameFrame extends JFrame {
         new SwingWorker<List<GameRecord>, Void>() {
             @Override
             protected List<GameRecord> doInBackground() throws Exception {
-                return gameRepository.getRecentGames(SqlServerGameRepository.MAX_HISTORY_RECORDS);
+                return gameRepository.getRecentGames();
             }
 
             @Override
@@ -268,7 +269,7 @@ public final class GameFrame extends JFrame {
         String message = cause.getMessage() == null
                 ? cause.getClass().getSimpleName() : cause.getMessage();
         historyPanel.setLoadError(message);
-        System.err.println("Unable to load game history: " + message);
+        System.err.println("Unable to load local game history: " + message);
         JOptionPane.showMessageDialog(this, "Không thể tải lịch sử ván chơi.\n" + message,
                 "Lỗi tải lịch sử", JOptionPane.ERROR_MESSAGE);
     }
@@ -281,8 +282,8 @@ public final class GameFrame extends JFrame {
         if (gameRunId == runId && gameState == GameState.GAME_OVER) {
             finalScoreLabel.setText("Không thể lưu thành tích.");
         }
-        System.err.println("Unable to save game result: " + message);
-        JOptionPane.showMessageDialog(this, "Không thể lưu kết quả vào database.\n" + message,
+        System.err.println("Unable to save local game result: " + message);
+        JOptionPane.showMessageDialog(this, "Không thể lưu bảng xếp hạng vào tệp trên máy.\n" + message,
                 "Lỗi lưu thành tích", JOptionPane.ERROR_MESSAGE);
     }
 

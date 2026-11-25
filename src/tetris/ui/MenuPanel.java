@@ -36,26 +36,21 @@ public final class MenuPanel extends JPanel {
 
     private final JTextField playerNameField = new JTextField(18);
     private final JPanel leaderboardEntries = new JPanel();
-    private final JLabel databaseStatus = new JLabel("Đang kết nối SQL Server...");
+    private final JLabel persistenceStatus = new JLabel("Đang tải bảng xếp hạng...");
     private ArcadeButton playButton;
     private ArcadeButton historyButton;
-    private boolean databaseReady;
+    private boolean persistenceReady;
     private boolean busy;
 
     public MenuPanel(Runnable onPlay, Runnable onExit) {
-        this(adaptPlayAction(onPlay), onExit, null, false);
+        this(adaptPlayAction(onPlay), onExit);
     }
 
     public MenuPanel(Consumer<String> onPlay, Runnable onExit) {
-        this(onPlay, onExit, null, false);
+        this(onPlay, onExit, null);
     }
 
     public MenuPanel(Consumer<String> onPlay, Runnable onExit, Runnable onHistory) {
-        this(onPlay, onExit, Objects.requireNonNull(onHistory, "onHistory"), true);
-    }
-
-    private MenuPanel(Consumer<String> onPlay, Runnable onExit, Runnable onHistory,
-            boolean includeHistory) {
         super(new BorderLayout(0, 24));
         Objects.requireNonNull(onPlay, "onPlay");
         Objects.requireNonNull(onExit, "onExit");
@@ -64,8 +59,7 @@ public final class MenuPanel extends JPanel {
         setBorder(new EmptyBorder(28, 48, 34, 48));
 
         JPanel header = createHeader();
-        CardPanel playerCard = createPlayerCard(onPlay, onExit,
-                includeHistory ? onHistory : null);
+        CardPanel playerCard = createPlayerCard(onPlay, onExit, onHistory);
         CardPanel leaderboardCard = createLeaderboardCard();
 
         JPanel content = new JPanel(new GridBagLayout());
@@ -88,11 +82,7 @@ public final class MenuPanel extends JPanel {
 
         add(header, BorderLayout.NORTH);
         add(content, BorderLayout.CENTER);
-        databaseReady = !includeHistory;
-        if (!includeHistory) {
-            databaseStatus.setText("");
-        }
-        updateDatabaseControls();
+        updatePersistenceControls();
     }
 
     private JPanel createHeader() {
@@ -172,7 +162,6 @@ public final class MenuPanel extends JPanel {
             historyButton.setAlignmentX(Component.LEFT_ALIGNMENT);
             historyButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         }
-
         JPanel buttons = new JPanel(new GridLayout(1, 2, 12, 0));
         buttons.setOpaque(false);
         buttons.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
@@ -191,11 +180,11 @@ public final class MenuPanel extends JPanel {
             content.add(Box.createVerticalStrut(12));
             content.add(historyButton);
         }
-        databaseStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
-        databaseStatus.setForeground(SECONDARY_TEXT_COLOR);
-        databaseStatus.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+        persistenceStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
+        persistenceStatus.setForeground(SECONDARY_TEXT_COLOR);
+        persistenceStatus.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
         content.add(Box.createVerticalStrut(8));
-        content.add(databaseStatus);
+        content.add(persistenceStatus);
         content.add(Box.createVerticalGlue());
         content.add(buttons);
         card.add(content, BorderLayout.CENTER);
@@ -260,27 +249,27 @@ public final class MenuPanel extends JPanel {
         leaderboardEntries.repaint();
     }
 
-    public void setDatabaseReady(boolean ready, String status) {
-        databaseReady = ready;
-        databaseStatus.setText(status);
-        databaseStatus.setForeground(ready
+    public void setPersistenceReady(boolean ready, String status) {
+        persistenceReady = ready;
+        persistenceStatus.setText(status);
+        persistenceStatus.setForeground(ready
                 ? new Color(124, 220, 164) : new Color(255, 164, 145));
-        updateDatabaseControls();
+        updatePersistenceControls();
     }
 
     public void setBusy(boolean busy) {
         this.busy = busy;
-        updateDatabaseControls();
+        updatePersistenceControls();
     }
 
-    private void updateDatabaseControls() {
+    private void updatePersistenceControls() {
         if (playButton != null) {
-            playButton.setEnabled(databaseReady && !busy);
+            playButton.setEnabled(persistenceReady && !busy);
         }
         if (historyButton != null) {
-            historyButton.setEnabled(databaseReady && !busy);
+            historyButton.setEnabled(persistenceReady && !busy);
         }
-        playerNameField.setEnabled(databaseReady && !busy);
+        playerNameField.setEnabled(persistenceReady && !busy);
     }
 
     private JPanel createLeaderboardRow(int rank, PlayerRecord player) {

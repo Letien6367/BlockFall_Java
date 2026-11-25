@@ -7,10 +7,9 @@ Tạo game xếp gạch Tetris chạy trực tiếp trên Windows Desktop bằng
 - JDK 21
 - Java Swing, AWT, Graphics2D
 - Swing Timer
-- JDBC với Microsoft SQL Server JDBC Driver
-- SQL Server Express/LocalDB cài trên cùng máy; không cần dịch vụ online
+- Lưu dữ liệu cục bộ bằng tệp text UTF-8 trong thư mục người dùng
 - VS Code + Extension Pack for Java
-- Không database từ xa, không multiplayer/online, không JavaFX.
+- Không dùng database, không multiplayer/online, không JavaFX.
 
 ## Kích thước và luật chơi
 - Cửa sổ đề xuất: 900 x 650 px.
@@ -25,9 +24,9 @@ Tạo game xếp gạch Tetris chạy trực tiếp trên Windows Desktop bằng
 - Game over khi khối mới không thể spawn.
 - Hiển thị Score, Best Score, Level, Lines, Next Piece.
 - Pause, Resume, Restart, Main Menu.
-- Tên người chơi, bảng xếp hạng và lịch sử ván lưu trong SQL Server database `BlockFall`.
-- Mỗi ván kết thúc lưu điểm, cấp độ, số dòng đã xóa và thời điểm.
-- Dữ liệu bảng xếp hạng và kỷ lục cũ được nhập một lần từ file local, không xóa file gốc.
+- Tên người chơi và điểm cao nhất lưu trong bảng xếp hạng tệp cục bộ.
+- Mỗi ván kết thúc lưu điểm, cấp độ, số dòng đã xóa và thời điểm vào tệp cục bộ.
+- Tệp bảng xếp hạng nằm tại `%USERPROFILE%\.blockfall\leaderboard.txt`; định dạng cũ được giữ nguyên.
 
 ## Điều khiển mặc định
 - Left / A: sang trái
@@ -76,6 +75,7 @@ Tạo game xếp gạch Tetris chạy trực tiếp trên Windows Desktop bằng
 - Pause không làm game tiếp tục chạy ngầm.
 - Restart reset đúng toàn bộ trạng thái ván chơi.
 - Thành tích và tên người chơi tồn tại sau khi tắt/mở game.
-- Lịch sử ván có thể xem trong giao diện; lỗi kết nối database được báo rõ.
-- Dữ liệu text cũ chỉ được nhập một lần và file nguồn vẫn được giữ nguyên.
+- Bảng xếp hạng và tên người chơi tồn tại sau khi tắt/mở game.
+- Lịch sử ván có thể xem trong giao diện.
+- Lỗi đọc/ghi tệp thành tích được báo rõ.
 - Có README hướng dẫn chạy và build.

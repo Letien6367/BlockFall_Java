@@ -26,10 +26,15 @@ Status values: NOT STARTED / IN PROGRESS / BLOCKED / DONE
 | 19 | Random level palettes | DONE | Mỗi lần level tăng tạo bảng màu ngẫu nhiên mới cho khối, ghost và preview; restart tạo palette khởi đầu ngẫu nhiên. |
 | 20 | Player leaderboard | DONE | Thêm nhập tên trước khi chơi, ID ổn định theo tên (phân biệt hoa/thường, chuẩn hóa khoảng trắng), lưu điểm cao nhất từng người tại `.blockfall/leaderboard.txt`; menu dùng bảng top 10 thay cho hai ô kỷ lục chung, có thẻ nhập tên và bảng xếp hạng gọn ở góc phải. Kiểm thử persistence/UI đạt. |
 | 21 | Combo clear effect | DONE | Mỗi lượt khóa có xóa dòng hiển thị banner từ COMBO x1; các lượt liên tiếp tăng xN, khóa không xóa dòng thì reset. Hiệu ứng bật lên/mờ dần, timer hỗ trợ pause/resume/restart; không đổi công thức điểm. |
-| 22 | SQL Server persistence and game history | DONE | Chuyển hồ sơ/người chơi và bảng xếp hạng sang SQL Server; nhập dữ liệu file cũ một lần, ghi điểm/cấp/dòng/thời điểm khi game over và thêm màn hình xem 100 ván gần nhất. Đã build JAR và smoke test migration/UI/driver. Chưa chạy end-to-end với SQL Server vì chưa có app login trong môi trường; hướng dẫn setup nằm trong README. |
+| 22 | SQL Server persistence and game history | SUPERSEDED | Tính năng SQL Server đã được gỡ theo yêu cầu; quay về lưu bảng xếp hạng trong tệp cục bộ. |
+
+| 23 | Fix database startup fallback | SUPERSEDED | Không còn cần cấu hình hay kết nối database. |
+
+| 24 | Restore local leaderboard storage | DONE | Gỡ SQL Server/JDBC khỏi ứng dụng và build; đọc/ghi leaderboard.txt theo định dạng cũ, giữ điểm cao toàn cục trong high-score.txt và lưu lịch sử 100 ván ở game-history.txt trong .blockfall. Build JAR thành công; kiểm tra tương thích tệp cũ, điểm cao và lịch sử sau khi khởi động lại. |
 
 ## Current working task
-All tasks 00–22 complete.
+All applicable tasks complete.
 
 ## Known issues
-Bộ test tự động (`test/` và `test.ps1`) đã được xóa theo yêu cầu; build/run vẫn dùng `build.ps1`. Môi trường hiện tại dùng JDK 26 với `--release 21`; chưa kiểm chứng bằng compiler JDK 21 thực tế. Chưa chạy end-to-end với SQL Server: cần tạo database/login theo README và cấu hình `BLOCKFALL_DB_URL`, `BLOCKFALL_DB_USER`, `BLOCKFALL_DB_PASSWORD`; không sửa các SQL Server instance đang có trong phiên làm việc này.
+Bộ test tự động (`test/` và `test.ps1`) đã được xóa theo yêu cầu; build/run vẫn dùng `build.ps1`. Môi trường hiện tại dùng JDK 26 với `--release 21`; chưa kiểm chứng bằng compiler JDK 21 thực tế.
+Điểm số chỉ còn trong SQL Server (nếu có) không được tự động xuất; ứng dụng tiếp tục đọc tệp leaderboard.txt cũ nếu tệp đó còn.
